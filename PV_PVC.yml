@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata: 
+  name: log-volume
+spec:
+  accessMode:
+    - ReadWriteOnce
+  PersistentVolumeClaimPolicy: 
+  capacity:
+    storage: 1Gi
+  hostPath:
+    path: /opt/volume/nginx
+
+---
+# PERSISTENT VOLUME CLAIM
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: log-claim
+spec:
+  accessMode:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 200Mi
+  storageClassName: manual
+
+---
+# POD CREATION
+apiVersion: v1
+kind: Pod 
+metadata: 
+  name: logger
+spec:
+  container:
+  - name: logger
+    image: nginx:alpine
+    volumeMounts:
+    - mountPath: /var/www/nginx
+      name: log-claim
+  volumes:
+  - name: log-claim
+    persistentVolumeClaim:
+      claimName: log-claim
+
+---
+#NFS PV TYPE
+apiVersion: v1
+kind: PersistentVolume
+metadata: 
+  name: pv-nfs
+spec:
+  capacity:
+    storage: 5Gi
+  persistentVolumeClaimPolicy: Recycle
+  volumeMode: Filesystem
+  accessMode:
+    - ReadWriteOnce
+  mountOptions:
+    - hard
+    - nfsevers=4.0
+  nfs:
+    path:
+    server: 
+
+---
+#POD WITH VOLUME
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+  volumes:
+  - name: log-volume
+    hostPath:
+      path: /var/log/webapp
+
+
+---
+#STORAGE CLASS
+apiVersion: storage.k8s.io/v1
+kind: storageClass
+metadata:
+  name: google-storage
+provisioner: kubernetes.io/gce-pd
+
+---
+#PVC REFRENCING STORAGE CLASS
+apiVersion: v1 
+kind: PersistentVolumeClaim
+metadata:
+  name: cloud-pvc
+spec:
+  storageClassName: google-storage
+  resources:
+    requests:
+      storage: 100Mi
+  accessModes:
+    - ReadWriteOnce
+
+---
+# POD REFRENCING PVC CLIAM
+apiVersion: v1 
+kind: Pod
+metadata: 
+  name: webapp
+spec:
+  containers:
+  - name: webapp
+    image: nginx:alpine
+    volumeMounts:
+    - mountPath:  /opt
+      name: data-volume
+  volumes:
+  - name: data-volume
+    persistentVolumeClaim: cloud-pvc
+
+
